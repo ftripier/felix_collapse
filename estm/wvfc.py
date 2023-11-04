@@ -1,6 +1,6 @@
 from numpy.typing import NDArray
 import numpy as np
-from .adjacency import Adjacency
+from .source_patterns import SourcePatterns
 
 
 class WavefunctionCollapseInstance:
@@ -8,7 +8,7 @@ class WavefunctionCollapseInstance:
 
     def __init__(self, source_texture: NDArray[np.byte]) -> None:
         self.source_texture = source_texture
-        self.adjacency = Adjacency(self.source_texture)
+        self.source_patterns = SourcePatterns(self.source_texture)
 
     def run(self) -> NDArray[np.byte]:
         raise NotImplementedError
