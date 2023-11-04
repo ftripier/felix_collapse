@@ -40,7 +40,6 @@ class Adjacency:
         )
         self._collect_patterns()
 
-
     def _collect_patterns(self):
         """Runs a NxN convolution across the whole image, and stores each
         convolution in a flat, deduplicated list of patterns.
@@ -54,5 +53,3 @@ class Adjacency:
                 pattern = Pattern.from_ndarray(window)
                 self.patterns.add(pattern)
                 self.pattern_frequencies[pattern] += 1
-
-
