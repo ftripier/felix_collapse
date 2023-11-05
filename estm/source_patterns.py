@@ -96,6 +96,7 @@ class SourcePatterns:
                     range(x, x + self.N), mode="wrap", axis=0
                 ).take(range(y, y + self.N), mode="wrap", axis=1)
                 pattern = Pattern.from_ndarray(window)
+                # TODO: add reflections and rotations
                 self.patterns.add(pattern)
                 self.frequencies[pattern] += 1
 
