@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import networkx as nx
 from typing import Tuple, Set, Generator, List, Dict
 from enum import Enum
-from .source_patterns import Pattern, SourcePatterns
+from .source_patterns import Pattern, SourcePatterns, Directions
 
 
 @dataclass
@@ -230,8 +230,9 @@ class Wavefunction:
         while len(propagation_stack) > 0:
             propagater_coord = propagation_stack.pop()
             propagater_cell: WaveCell = self.cells.nodes[propagater_coord]["cell"]
-            neighbors = self.cells.neighbors(propagater_coord)
+            neighbors = list(self.cells.neighbors(propagater_coord))
             for neighbor_coord in neighbors:
+                neighbor_coord: Tuple[int, int] = neighbor_coord
                 neighbor_cell: WaveCell = self.cells.nodes[neighbor_coord]["cell"]
                 if not neighbor_cell.is_collapsed():
                     # We can only influence the neighbor cell if it has not been collapsed
@@ -239,13 +240,16 @@ class Wavefunction:
                     # 2. update the cell to consider only the intersection of patterns
                     # that it still has with the allowed patterns.
                     # 3. Add the influenced cell to the propagation stack
-                    direction = propagater_coord - neighbor_coord
+                    direction = (
+                        int(propagater_coord[0] - neighbor_coord[0]),
+                        int(propagater_coord[1] - neighbor_coord[1]),
+                    )
                     allowed_patterns_for_neighbor = {
                         allowed_pattern
                         for pattern in propagater_cell.possibilities()
                         for allowed_pattern in self.source_patterns.adjacencies[
                             pattern
-                        ][direction]
+                        ][Directions(direction)]
                     }
                     possible_patterns_for_neighbor = neighbor_cell.possibilities()
                     if not possible_patterns_for_neighbor.issubset(
@@ -271,7 +275,7 @@ class Wavefunction:
                     if amplitude != 0
                 ]
             )
-            if nonzero_amplitudes > 0:
+            if nonzero_amplitudes == 0:
                 raise Contradiction(f"Ran into cell with no nonzero amplitudes {cell}")
             if nonzero_amplitudes > 1:
                 return False
@@ -279,7 +283,10 @@ class Wavefunction:
 
     def produce_image(self) -> NDArray[np.int32]:
         image = np.array(
-            [[[] for _ in range(self.dimensions[1])] for _ in range(self.dimensions[0])]
+            [
+                [[0, 0, 0, 0] for _ in range(self.dimensions[1])]
+                for _ in range(self.dimensions[0])
+            ]
         )
         for cell in self.get_cells():
             image[cell.image_coordinates] = cell.get_pixel()
