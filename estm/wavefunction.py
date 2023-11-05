@@ -234,9 +234,7 @@ class Wavefunction:
                     # 1. query allowed patterns from source patterns
                     # 2. update the cell to consider only the intersection of patterns
                     # that it still has with the allowed patterns.
-                    # 3. we can no longer influence the cell now that we've been collapsed. Remove the
-                    # edge to the neighbor
-                    # 4. Add the influenced cell to the propagation stack
+                    # 3. Add the influenced cell to the propagation stack
                     direction = propagater_coord - neighbor_coord
                     allowed_patterns_for_neighbor = {
                         allowed_pattern
@@ -255,6 +253,11 @@ class Wavefunction:
                         )
                         neighbor_cell.update_entropy()
                         propagation_stack.append(neighbor_coord)
+                if propagater_cell.is_collapsed():
+                    # if we've been collapsed we can no longer influnce neighbors. We prevent
+                    # traversal to and from this node as an optimization, since it no longer
+                    # does anything useful in propagation
+                    self.cells.remove_edge(propagater_coord, neighbor_coord)
 
     def is_fully_collapsed(self) -> bool:
         for cell in self.get_cells():
