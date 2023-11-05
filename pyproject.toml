@@ -9,6 +9,7 @@ readme = "README.md"
 python = "^3.11"
 imageio = "^2.31.6"
 typed-argument-parser = "^1.8.1"
+networkx = "^3.2.1"
 
 [build-system]
 requires = ["poetry-core"]
