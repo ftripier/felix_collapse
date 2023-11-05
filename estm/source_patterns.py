@@ -13,14 +13,22 @@ class Pattern:
     hashed_pixels: bytes
     original_shape: Tuple[int, int, int]
     N: int
+    nid: Tuple[int, int, int]
+
+    def __eq__(self, other):
+        return self.nid == other.nid
+
+    def __hash__(self):
+        return hash(self.nid)
 
     @classmethod
-    def from_ndarray(cls, pixels: NDArray[np.byte]):
+    def from_ndarray(cls, pixels: NDArray[np.byte], nid: Tuple[int, int, int]):
         assert pixels.shape[0] == pixels.shape[1]
         return cls(
             bytes(pixels.flatten().tolist()),
             (pixels.shape[0], pixels.shape[1], pixels.shape[2]),
             pixels.shape[0],
+            nid,
         )
 
     def get_ndarray(self) -> NDArray[np.byte]:
@@ -95,7 +103,7 @@ class SourcePatterns:
                 window = self.source_texture.take(
                     range(x, x + self.N), mode="wrap", axis=0
                 ).take(range(y, y + self.N), mode="wrap", axis=1)
-                pattern = Pattern.from_ndarray(window)
+                pattern = Pattern.from_ndarray(window, (x, y, 0))
                 # TODO: add reflections and rotations
                 self.patterns.add(pattern)
                 self.frequencies[pattern] += 1

@@ -10,5 +10,5 @@ def load_png(file: Path) -> NDArray[np.byte]:
     return iio.imread(file)
 
 
-def save_png(image: NDArray[np.byte], output_file: Path):
-    iio.imwrite(output_file, image)
+def save_png(image: NDArray[np.uint8], output_file: Path):
+    iio.imwrite(output_file, image, extension=".png")

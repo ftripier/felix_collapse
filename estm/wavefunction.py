@@ -60,18 +60,22 @@ class SuperpositionPixel:
 
     def get_alpha_channel(self) -> int:
         alpha_share = 1.0
+        total_amplitude = sum([pixel.amplitude for pixel in self.alpha])
         for alpha_pixel in self.alpha:
-            alpha_share = alpha_share * (1.0 - alpha_pixel.value)
-        return int(alpha_share * 255)
+            alpha_subtraction = 255.0/alpha_pixel.value * alpha_pixel.amplitude/total_amplitude
+            alpha_share = alpha_share * (1.0 - alpha_subtraction)
+        final_alpha = 1.0 - alpha_share
+        return int(final_alpha * 255)
 
-    def get_color_vector(self) -> NDArray[np.int32]:
+    def get_color_vector(self) -> NDArray[np.uint8]:
         return np.array(
             [
                 self.get_color_channel(Color.RED),
                 self.get_color_channel(Color.GREEN),
                 self.get_color_channel(Color.BLUE),
                 self.get_alpha_channel(),
-            ]
+            ],
+            dtype=np.uint8
         )
 
 
@@ -84,7 +88,7 @@ class WaveCell:
     def __post_init__(self):
         self._update_entropy()
 
-    def get_pixel(self) -> NDArray[np.int32]:
+    def get_pixel(self) -> NDArray[np.uint8]:
         final_pixel = SuperpositionPixel([], [], [], [])
         for pattern, amplitude in self.pattern_amplitudes.items():
             pattern_image = pattern.get_ndarray()
@@ -122,10 +126,16 @@ class WaveCell:
         self.pattern_amplitudes = {choice: 1.0}
         self._update_entropy()
 
-    def delete_possibilities(self, to_delete: Set[Pattern]):
-        for pattern in to_delete:
-            self.pattern_amplitudes.pop(pattern)
+    def set_possibilities(self, allowed_possibilities: Set[Pattern]) -> bool:
+        old_possibilities = self.pattern_amplitudes
+        needs_update = len(allowed_possibilities) != len(old_possibilities)
+        if not needs_update:
+            return False
+        self.pattern_amplitudes = {}
+        for pattern in allowed_possibilities:
+            self.pattern_amplitudes[pattern] = old_possibilities[pattern]
         self._update_entropy()
+        return True
 
     def is_collapsed(self):
         possibilities = len(self.pattern_amplitudes)
@@ -159,6 +169,9 @@ class Wavefunction:
         # keeps track of observed (dirty) nids that will act as the source of
         # propagation.
         self.observed_cells: List[Tuple[int, int]] = []
+        # optimization to prevent linear passes over the entire graph when
+        # determining cells with entropy.
+        self.coords_with_entropy: Set[Tuple[int, int]] = set()
         self._make_cell_graph()
 
     def _make_cell_graph(self) -> None:
@@ -180,6 +193,7 @@ class Wavefunction:
                 },
             )
             self.cells.add_node(coordinate, cell=new_cell)
+            self.coords_with_entropy.add(coordinate)
         # now that all nodes have been added, we construct the edges
         for y, x in itertools.product(
             range(self.dimensions[0]), range(self.dimensions[1])
@@ -201,8 +215,11 @@ class Wavefunction:
             yield cell
 
     def get_minimum_entropy_uncollapsed_cell(self) -> WaveCell:
+        cells_with_entropy = [
+            self.cells.nodes[coord]["cell"] for coord in self.coords_with_entropy
+        ]
         uncollapsed_cells = [
-            cell for cell in list(self.get_cells()) if not cell.is_collapsed()
+            cell for cell in cells_with_entropy if not cell.is_collapsed()
         ]
         entropy_sorted_cells = sorted(uncollapsed_cells, key=lambda x: x.entropy)
         return entropy_sorted_cells[0]
@@ -230,6 +247,8 @@ class Wavefunction:
         while len(propagation_stack) > 0:
             propagater_coord = propagation_stack.pop()
             propagater_cell: WaveCell = self.cells.nodes[propagater_coord]["cell"]
+            if propagater_cell.is_collapsed():
+                self.coords_with_entropy.discard(propagater_coord)
             neighbors = list(self.cells.neighbors(propagater_coord))
             for neighbor_coord in neighbors:
                 neighbor_coord: Tuple[int, int] = neighbor_coord
@@ -252,13 +271,11 @@ class Wavefunction:
                         ][Directions(direction)]
                     }
                     possible_patterns_for_neighbor = neighbor_cell.possibilities()
-                    if not possible_patterns_for_neighbor.issubset(
-                        allowed_patterns_for_neighbor
-                    ):
-                        neighbor_cell.delete_possibilities(
-                            allowed_patterns_for_neighbor
-                            - possible_patterns_for_neighbor
-                        )
+                    allowed_possibilities = (
+                        possible_patterns_for_neighbor & allowed_patterns_for_neighbor
+                    )
+                    possibilities_collapsed = neighbor_cell.set_possibilities(allowed_possibilities)
+                    if possibilities_collapsed:
                         propagation_stack.append(neighbor_coord)
                 if propagater_cell.is_collapsed():
                     # if we've been collapsed we can no longer influnce neighbors. We prevent
@@ -267,27 +284,19 @@ class Wavefunction:
                     self.cells.remove_edge(propagater_coord, neighbor_coord)
 
     def is_fully_collapsed(self) -> bool:
-        for cell in self.get_cells():
-            nonzero_amplitudes = len(
-                [
-                    amplitude
-                    for amplitude in cell.pattern_amplitudes.values()
-                    if amplitude != 0
-                ]
-            )
-            if nonzero_amplitudes == 0:
-                raise Contradiction(f"Ran into cell with no nonzero amplitudes {cell}")
-            if nonzero_amplitudes > 1:
-                return False
-        return True
+        return len(self.coords_with_entropy) == 0
 
-    def produce_image(self) -> NDArray[np.int32]:
+    def produce_image(self) -> NDArray[np.uint8]:
         image = np.array(
             [
                 [[0, 0, 0, 0] for _ in range(self.dimensions[1])]
                 for _ in range(self.dimensions[0])
-            ]
+            ],
+            dtype=np.uint8
         )
         for cell in self.get_cells():
             image[cell.image_coordinates] = cell.get_pixel()
         return image
+
+    def current_progress(self):
+        return 1.0 - float(len(self.coords_with_entropy)) / float(self.dimensions[0] * self.dimensions[1])
