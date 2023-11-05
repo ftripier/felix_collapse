@@ -81,6 +81,9 @@ class WaveCell:
     image_coordinates: Tuple[int, int]
     pattern_amplitudes: Dict[Pattern, float]
 
+    def __post_init__(self):
+        self._update_entropy()
+
     def get_pixel(self) -> NDArray[np.int32]:
         final_pixel = SuperpositionPixel([], [], [], [])
         for pattern, amplitude in self.pattern_amplitudes.items():
@@ -96,7 +99,7 @@ class WaveCell:
     def possibilities(self) -> Set[Pattern]:
         return set(self.pattern_amplitudes.keys())
 
-    def update_entropy(self):
+    def _update_entropy(self):
         # entropy = the number of patterns available to choose from - a small random term
         # to make selecting the minimum entropy node less stable.
         self.entropy = len(self.pattern_amplitudes) - random.uniform(0.0000001, 0.1)
@@ -117,10 +120,12 @@ class WaveCell:
             probabilities.append(amplitude / total_amplitude)
         choice = np.random.choice(patterns, p=probabilities)
         self.pattern_amplitudes = {choice: 1.0}
+        self._update_entropy()
 
     def delete_possibilities(self, to_delete: Set[Pattern]):
         for pattern in to_delete:
             self.pattern_amplitudes.pop(pattern)
+        self._update_entropy()
 
     def is_collapsed(self):
         possibilities = len(self.pattern_amplitudes)
@@ -174,7 +179,6 @@ class Wavefunction:
                     for pattern, frequency in self.source_patterns.frequencies.items()
                 },
             )
-            new_cell.update_entropy()
             self.cells.add_node(coordinate, cell=new_cell)
         # now that all nodes have been added, we construct the edges
         for y, x in itertools.product(
@@ -251,7 +255,6 @@ class Wavefunction:
                             allowed_patterns_for_neighbor
                             - possible_patterns_for_neighbor
                         )
-                        neighbor_cell.update_entropy()
                         propagation_stack.append(neighbor_coord)
                 if propagater_cell.is_collapsed():
                     # if we've been collapsed we can no longer influnce neighbors. We prevent
