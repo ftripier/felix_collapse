@@ -104,7 +104,7 @@ class SourcePatterns:
         # fmt: off
         for pattern_a, pattern_b in itertools.product(
             self.patterns,
-            self.patterns
+            repeat=2
         ):
             """(in case when N = 3) If the first two columns of
             pattern 1 == the last two columns of pattern 2 -->
